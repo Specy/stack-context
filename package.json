@@ -1,7 +1,7 @@
 {
   "name": "@specy/stack-context",
-  "version": "0.0.1",
-  "description": "A library to store data anywhere in a call stack, both sync and async.",
+  "version": "0.0.2",
+  "description": "A library to store data anywhere in a call stack, only in sync code",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/specy/stack-context#readme",

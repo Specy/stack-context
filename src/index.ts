@@ -5,14 +5,16 @@ export type StackContextReturn<T> = {
 
 export class StackContext {
   private static id = 1;
-  private static _state: Record<number, {
-    value: unknown
-  }> = {};
+  private static _state: Record<
+    number,
+    {
+      value: unknown;
+    }
+  > = {};
 
   public static root<T>(
     callback: () => T,
     state?: unknown,
-    alias?: string, 
   ): StackContextReturn<T> {
     const id = StackContext.id++;
     StackContext._state[id] = {
@@ -25,18 +27,25 @@ export class StackContext {
       value: `__stack_context-${id}`,
       configurable: true,
     });
-    const val = fn();
-    
+
+    let val;
+    try {
+      val = fn();
+    } catch (e) {
+      delete StackContext._state[id];
+      throw e;
+    }
+
     return {
       value: val,
       dispose: () => {
         if (
           val instanceof Promise ||
           //@ts-ignore
-          (val && "then" in val && typeof val.then === "function")
+          (val && "finally" in val && typeof val.finally === "function")
         ) {
           //@ts-ignore
-          val.then(() => {
+          val.finally(() => {
             delete StackContext._state[id];
           });
         } else {
@@ -48,18 +57,59 @@ export class StackContext {
 
   public static state<T>(): T {
     const id = StackContext.getStackId();
-    return StackContext._state[id].value as T
+    return StackContext._state[id].value as T;
   }
 
   public static setState<T>(val: T) {
     const id = StackContext.getStackId();
     StackContext._state[id] = {
       value: val,
-    }
+    };
   }
-  
-  public static deleteState(id: number){
-    delete StackContext._state[id]
+
+  public static deleteState(id: number) {
+    delete StackContext._state[id];
+  }
+
+  public static getIds() {
+    const stack = getStackTrace();
+    const matchesIterator = (stack ?? "").matchAll(/__stack_context-\d+/);
+    return [...matchesIterator].map((val) => Number(val[0].split("-")[1]));
+  }
+  public static rootThenDispose<T>(callback: () => T, state?: unknown): T {
+    const id = StackContext.id++;
+    StackContext._state[id] = {
+      value: state,
+    };
+    const fn = function () {
+      return callback();
+    };
+    Object.defineProperty(fn, "name", {
+      value: `__stack_context-${id}`,
+      configurable: true,
+    });
+    let val;
+    try {
+      val = fn();
+    } catch (e) {
+      delete StackContext._state[id];
+      throw e;
+    }
+
+    if (
+      val instanceof Promise ||
+      //@ts-ignore
+      (val && "finally" in val && typeof val.finally === "function")
+    ) {
+      //@ts-ignore
+      val.finally(() => {
+        delete StackContext._state[id];
+      });
+    } else {
+      delete StackContext._state[id];
+    }
+
+    return val;
   }
 
   private static getStackId() {
@@ -77,36 +127,6 @@ export class StackContext {
       );
     }
     return id;
-  }
-  
-  public static rootThenDispose<T>(callback: () => T, state?: unknown): T {
-    const id = StackContext.id++;
-    StackContext._state[id] = {
-      value: state,
-    }
-    const fn = function () {
-      return callback();
-    };
-    Object.defineProperty(fn, "name", {
-      value: `__stack_context-${id}`,
-      configurable: true,
-    });
-    const val = fn();
-    
-    if (
-      val instanceof Promise ||
-      //@ts-ignore
-      (val && "then" in val && typeof val.then === "function")
-    ) {
-      //@ts-ignore
-      val.then(() => {
-        delete StackContext._state[id];
-      });
-    } else {
-      delete StackContext._state[id];
-    }
-    
-    return val;
   }
 }
 
